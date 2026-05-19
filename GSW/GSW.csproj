@@ -1,0 +1,48 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>disable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>AppIcon.ico</ApplicationIcon>
+    <AssemblyName>GSW</AssemblyName>
+    <RootNamespace>GSWEngine</RootNamespace>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <DebugType>embedded</DebugType>
+    <Version>0.9.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="skins\**\*.jpg" />
+    <EmbeddedResource Include="*.png" />
+    <EmbeddedResource Include="*.ico" />
+    <EmbeddedResource Include="intel_manifest.rtf" />
+    <EmbeddedResource Include="Status.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="GSW_Installer\**" />
+    <EmbeddedResource Remove="GSW_Installer\**" />
+    <None Remove="GSW_Installer\**" />
+  </ItemGroup>
+
+  <Target Name="PostBuildCleanRoot" AfterTargets="Build">
+    <!-- Create necessary subdirectories -->
+    <MakeDir Directories="$(TargetDir)DLLs;$(TargetDir)Config" />
+
+    <!-- Migrate Config files (excluding runtimeconfig.json) -->
+    <Move SourceFiles="$(TargetDir)GSW.deps.json" DestinationFolder="$(TargetDir)Config" Condition="Exists('$(TargetDir)GSW.deps.json')" />
+    <Move SourceFiles="$(TargetDir)GSW.pdb" DestinationFolder="$(TargetDir)Config" Condition="Exists('$(TargetDir)GSW.pdb')" />
+
+    <!-- Move user JSON files to Config -->
+    <Move SourceFiles="$(TargetDir)GSW_config.json" DestinationFolder="$(TargetDir)Config" Condition="Exists('$(TargetDir)GSW_config.json')" />
+    <Move SourceFiles="$(TargetDir)Status.json" DestinationFolder="$(TargetDir)Config" Condition="Exists('$(TargetDir)Status.json')" />
+  </Target>
+
+</Project>
