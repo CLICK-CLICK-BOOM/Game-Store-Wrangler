@@ -1,0 +1,14 @@
+# Global folder blocks (matches root and nested folders like GSW/publish)
+**/bin/
+**/obj/
+**/dist/
+**/publish/
+
+# Target specific extensions everywhere
+*.json
+*.exe
+
+# Specific files
+GSW/GEMINI.MD
+GSW/.aiexclude
+GSW/GSW_Installer/Instructions.txt
