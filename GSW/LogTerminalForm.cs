@@ -11,7 +11,6 @@ namespace GSWEngine
     {
         private readonly Context _ctx;
         private ThemeColors _currentColors;
-        private System.Windows.Forms.Timer _refreshTimer;
         private Image _themeBg;
         private Font _logFont;
 
@@ -76,18 +75,15 @@ namespace GSWEngine
 
             // Fix: lblTerminalColumns removal pass completed.
 
-            _refreshTimer = new System.Windows.Forms.Timer { Interval = 50 };
-            _refreshTimer.Tick += (s, e) => RefreshTerminal();
-            _refreshTimer.Start();
+            _ctx.HistoryUpdated += Ctx_HistoryUpdated;
         }
 
-        private void RefreshTerminal()
+        private void Ctx_HistoryUpdated(object sender, EventArgs e)
         {
-            try
+            if (this.IsHandleCreated && !this.IsDisposed)
             {
-                this.Invalidate();
+                this.BeginInvoke(new Action(() => this.Refresh()));
             }
-            catch { }
         }
 
         public void ApplyTheme()
@@ -139,7 +135,12 @@ namespace GSWEngine
             // 3. Render Log Text Natively via GDI+ to prevent Release optimization blanking
             try
             {
-                var snapshot = _ctx.ExecutionHistory.ToList();
+                List<string> snapshot;
+                lock (_ctx.HistoryLock)
+                {
+                    snapshot = _ctx.ExecutionHistory.ToList();
+                }
+
                 var rollingSnapshot = snapshot.Skip(Math.Max(0, snapshot.Count - 46)).ToList();
                 string logText = rollingSnapshot.Any()
                     ? InternalFunctions.FormatExecutionHistory(rollingSnapshot, 46)
@@ -220,7 +221,10 @@ namespace GSWEngine
         {
             if (disposing)
             {
-                _refreshTimer?.Dispose();
+                if (_ctx != null)
+                {
+                    _ctx.HistoryUpdated -= Ctx_HistoryUpdated;
+                }
                 _logFont?.Dispose();
             }
             base.Dispose(disposing);

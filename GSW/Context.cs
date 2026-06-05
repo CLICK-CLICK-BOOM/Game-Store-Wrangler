@@ -14,6 +14,8 @@ namespace GSWEngine
     {
         public UserSettings Settings;
         public List<string> ExecutionHistory = new List<string>();
+        public event EventHandler HistoryUpdated;
+        public readonly object HistoryLock = new object();
 
         private readonly StateEngine _engine;
         private readonly UIManager _ui;
@@ -98,11 +100,16 @@ namespace GSWEngine
 
         public void AppendToHistory(string message)
         {
-            ExecutionHistory.Add(message);
-            if (ExecutionHistory.Count > 500)
+            lock (HistoryLock)
             {
-                ExecutionHistory.RemoveAt(0);
+                ExecutionHistory.Add(message);
+                if (ExecutionHistory.Count > 500)
+                {
+                    ExecutionHistory.RemoveAt(0);
+                }
             }
+            // Fire the event safely outside the lock to avoid deadlocks
+            HistoryUpdated?.Invoke(this, EventArgs.Empty);
         }
 
         private async Task StartWardenEngineAsync()

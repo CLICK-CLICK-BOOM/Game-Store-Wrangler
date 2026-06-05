@@ -114,7 +114,7 @@ namespace GSWEngine
             "teams", "slack", "zoom", "webex", "discord", "thunderbird", "chrome", "msedge", "firefox", "spotify", "whatsapp.root",
             
             // --- UI, Overlays & Services ---
-            "gamingservicesui", "GameBar", "GameBarFTServer", "XboxGameBarWidgets", "XboxGameBar", "TextInputHost", "XboxPcApp", "gamingservices",
+            "gamingservicesui", "GameBar", "GameBarFTServer", "XboxGameBarWidgets", "XboxGameBar", "TextInputHost", "XboxPcApp", "gamingservices", "DCv2", "nvcplui",
 
             // --- Unity & Crash Handlers ---
             "UnityCrashHandler64", "UnityCrashHandler32", "crashpad_handler",

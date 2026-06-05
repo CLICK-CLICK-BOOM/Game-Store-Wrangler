@@ -21,9 +21,10 @@ namespace GSWEngine
             try
             {
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmm");
-                _sessionLogFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", $"{InternalFunctions.AppNameShort}_Log_{timestamp}.txt");
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string logDir = Path.Combine(localAppData, "GSWEngine", "Logs");
+                _sessionLogFile = Path.Combine(logDir, $"{InternalFunctions.AppNameShort}_Log_{timestamp}.txt");
 
-                string logDir = Path.GetDirectoryName(_sessionLogFile);
                 if (!Directory.Exists(logDir)) Directory.CreateDirectory(logDir);
 
                 try
