@@ -195,9 +195,10 @@ namespace GSWEngine
                                     // ZERO SLOP: Process is dead. Do not resurrect.
                                     continue;
                                 }
-                                catch (Exception)
+                                catch (Exception ex)
                                 {
                                     // Access Denied / Shielded. Process is alive. Keep default "UWP Game".
+                                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
                                 }
 
                                 // THE BLACKLIST FIX: Enforce the blacklist BEFORE adding the signal
@@ -217,7 +218,10 @@ namespace GSWEngine
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                }
 
                 if (IsBlacklistedClass(hwnd)) continue;
 
@@ -299,7 +303,10 @@ namespace GSWEngine
                         }
                     }
                 }
-                catch { /* Process exited or access denied on non-game */ }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                }
             }
 
             // --- UWP & SANDBOX PERSISTENCE PRESERVATION ---
@@ -428,7 +435,10 @@ namespace GSWEngine
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+            }
             return false;
         }
     }

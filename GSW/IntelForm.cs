@@ -346,7 +346,10 @@ namespace GSWEngine
                     int textCol = ColorTranslator.ToWin32(textTarget);
                     DwmSetWindowAttribute(this.Handle, 36, ref textCol, sizeof(int));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                }
             }
         }
 

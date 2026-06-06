@@ -58,7 +58,7 @@ namespace GSWEngine
             }
             // 2. THE COUNTDOWN ALERT (Store is on "Death Row")
             // This no longer cares if it's MIN or ACTIVE. If the timer is ticking, it pulses.
-            else if (t.TimeLeft < t.MaxTime && t.TimeLeft > 0 && !t.ManualOverride)
+            else if (t.CurrentStatus != "OFFLINE" && t.TimeLeft < t.MaxTime && t.TimeLeft > 0 && !t.ManualOverride)
             {
                 // Pumped intensity: Floor 70, Peak 130
                 int alpha = (int)(100 + (Math.Sin(pulse * Math.PI * 4) * 30));

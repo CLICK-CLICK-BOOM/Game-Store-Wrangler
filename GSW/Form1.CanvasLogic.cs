@@ -8,6 +8,12 @@ namespace GSWEngine
 {
     public partial class StatsForm : Form
     {
+        private string FormatIoDisplay(long bytesPerSecond)
+        {
+            if (bytesPerSecond < 1024) return $"{bytesPerSecond} KB";
+            return $"{(bytesPerSecond / 1024.0):F0} MB";
+        }
+
         private void FinalizeSort()
         {
             var unstamped = _ctx.trackers.Except(_sortQueue).ToList();

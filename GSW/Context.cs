@@ -165,12 +165,30 @@ namespace GSWEngine
                     // Anchor check: Get the family PIDs using the case-insensitive detector
                     tracker.LauncherPids = StoreDetector.GetFamilyPids(tracker.DisplayName, tracker.ProcessName, processCache);
 
-                    if (IsUiVisible)
-                        tracker.CpuUsage = ActivityMonitor.GetTotalCpuUsage(tracker.LauncherPids, elapsedSec * 1000, processCache);
-                    else
-                        tracker.CpuUsage = 0;
+                    if (tracker.LauncherPids.Count == 0)
+                    {
+                        tracker.CurrentStatus = "OFFLINE"; // Enforce status
+                        tracker.CpuUsage = 0;              // Enforce zero
+                        tracker.DeltaDiskBytes = 0;        // Enforce zero
+                        continue;                          // Skip the Monitor entirely
+                    }
 
-                    tracker.DeltaDiskBytes = ActivityMonitor.GetTotalDiskBytes(tracker.LauncherPids, processCache);
+                    bool isSentryArmed = StateEngine.DiagnosticHUD.IsSentryArmed;
+
+                    if (isSentryArmed)
+                    {
+                        tracker.CpuUsage = 0;
+                        tracker.DeltaDiskBytes = 0;
+                    }
+                    else
+                    {
+                        if (IsUiVisible)
+                            tracker.CpuUsage = ActivityMonitor.GetTotalCpuUsage(tracker.LauncherPids, elapsedSec * 1000, processCache);
+                        else
+                            tracker.CpuUsage = 0;
+
+                        tracker.DeltaDiskBytes = ActivityMonitor.GetTotalDiskBytes(tracker.LauncherPids, processCache);
+                    }
 
                     // Visual & Ghost State Analysis
                     string vState = StoreDetector.DetermineVisualState(tracker.LauncherPids, tracker.DisplayName, processCache);
@@ -197,7 +215,7 @@ namespace GSWEngine
                         if (isNewGame)
                         {
                             _knownGamePids.Add(signal.Pid);
-                            AppendToHistory($"[Radar] Game: {signal.ProcessName} (PID: {signal.Pid})");
+                            AppendToHistory($"[Radar] Game: {signal.ProcessName} (PID: {signal.Pid}).");
                         }
 
                         string attributedStore = Attribution.DetermineStoreOwner(signal, Settings.Trackers);

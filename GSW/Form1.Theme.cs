@@ -48,7 +48,10 @@ namespace GSWEngine
                     int textCol = ColorTranslator.ToWin32(textTarget);
                     DwmSetWindowAttribute(this.Handle, 36, ref textCol, sizeof(int));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                }
             }
         }
 
@@ -150,9 +153,22 @@ namespace GSWEngine
                             g.DrawString(t.DisplayName, f, storeBrush, 10, y);
 
                             g.DrawString("[ X ]", f, actionBrush, 120, y);
+
                             g.DrawString(t.CurrentStatus, f, statusBrush, 165, y);
-                            g.DrawString(t.CpuDisplay, f, Brushes.White, 255, y);
-                            g.DrawString(t.DiskDisplay, f, Brushes.White, 305, y);
+
+                            // Logic: Determine color and format for CPU and I/O columns
+                            bool isDeepSleep = StateEngine.DiagnosticHUD.IsSentryArmed &&
+                                               (t.CurrentStatus == "GAME ACTIVE" ||
+                                                t.CurrentStatus == "GAME XBOX" ||
+                                                t.CurrentStatus == "Xbox Buddy");
+                            using (Brush textBrush = new SolidBrush(isDeepSleep ? _currentColors.Warning : Color.White))
+                            {
+                                string cpuDisplay = $"{t.CpuUsage:F1}%";
+                                string ioDisplay = FormatIoDisplay(t.DeltaDiskBytes / 1024);
+
+                                g.DrawString(cpuDisplay, f, textBrush, 255, y);
+                                g.DrawString(ioDisplay, f, textBrush, 303, y);
+                            }
 
                             g.DrawString("[", f, Brushes.Gray, 365, y);
                             g.DrawString(t.ManualOverride ? "Y" : "N", f, keepBrush, 372, y);
@@ -187,7 +203,7 @@ namespace GSWEngine
                 // Headers
                 using (Brush hb = new SolidBrush(_currentColors.GridFg))
                 {
-                    string[] headers = { "STORE", "REMOVE", "STATUS", "CPU", "I/O", "KEEP", "TIME", "CLOSE" };
+                    string[] headers = { "STORE", "REMOVE", "STATUS", "CPU", "I/O/s", "KEEP", "TIME", "CLOSE" };
                     int[] xPos = { 10, 108, 165, 255, 305, 363, 404, 448 };
                     for (int i = 0; i < headers.Length; i++) g.DrawString(headers[i], f, hb, xPos[i], 5);
 
@@ -231,10 +247,13 @@ namespace GSWEngine
                     var snapshot = _ctx.ExecutionHistory.ToList();
 
                     logBox.Text = snapshot.Any()
-                        ? InternalFunctions.FormatExecutionHistory(snapshot, 6)
+                        ? AuditLogger.FormatExecutionHistory(snapshot, 6)
                         : "TELEMETRY OUTPUT";
                 }
-                catch { /* Absorb the race condition. The 50ms timer will redraw it perfectly on the next tick. */ }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                }
             }
         }
 

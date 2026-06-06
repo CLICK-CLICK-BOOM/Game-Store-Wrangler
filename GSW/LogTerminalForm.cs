@@ -143,13 +143,16 @@ namespace GSWEngine
 
                 var rollingSnapshot = snapshot.Skip(Math.Max(0, snapshot.Count - 46)).ToList();
                 string logText = rollingSnapshot.Any()
-                    ? InternalFunctions.FormatExecutionHistory(rollingSnapshot, 46)
+                    ? AuditLogger.FormatExecutionHistory(rollingSnapshot, 46)
                     : "TELEMETRY OUTPUT";
 
                 Rectangle textBounds = new Rectangle(17, 17, 481, 650); // Adjusted for the removed title bar offset
                 TextRenderer.DrawText(g, logText, _logFont, textBounds, _currentColors.LogFg, TextFormatFlags.WordBreak | TextFormatFlags.Top | TextFormatFlags.Left);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+            }
 
             using (Pen p = new Pen(_currentColors.GeneralBtnBorder, 1)) g.DrawRectangle(p, tacticalFrame);
         }
@@ -186,7 +189,10 @@ namespace GSWEngine
                     int textCol = ColorTranslator.ToWin32(textTarget);
                     DwmSetWindowAttribute(this.Handle, 36, ref textCol, sizeof(int));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                }
             }
         }
 
@@ -206,14 +212,15 @@ namespace GSWEngine
             _themeBg?.Dispose();
             base.OnFormClosed(e);
 
-            // Explicitly tell the parent HUD form to recalculate OpenForms and restore its local logging display instantly
+            // Explicitly push the update command to the end of the message queue
+            // to ensure this form is completely removed from OpenForms before evaluation.
             if (this.Owner is StatsForm mainHud)
             {
-                mainHud.UpdateUI();
+                mainHud.BeginInvoke(new Action(() => mainHud.UpdateUI()));
             }
             else if (Application.OpenForms.OfType<StatsForm>().FirstOrDefault() is StatsForm mainApp)
             {
-                mainApp.UpdateUI();
+                mainApp.BeginInvoke(new Action(() => mainApp.UpdateUI()));
             }
         }
 

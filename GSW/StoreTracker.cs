@@ -25,8 +25,23 @@ namespace GSWEngine
         public int PendingTicks { get; set; } = 0;
         public string DisplayName { get; set; } = "";
         public string ProcessName { get; set; } = "";
+
+        private string _currentStatus = "OFFLINE";
         [JsonIgnore]
-        public string CurrentStatus { get; set; } = "OFFLINE";
+        public string CurrentStatus
+        {
+            get => _currentStatus;
+            set
+            {
+                _currentStatus = value;
+                if (_currentStatus == "OFFLINE")
+                {
+                    CpuUsage = 0;
+                    DeltaDiskBytes = 0;
+                    TimeLeft = 0; // Reset the "Death Row" timer
+                }
+            }
+        }
         public int KillCount { get; set; }
         public int LifetimeKills { get; set; }
         public long TotalMemoryReclaimed { get; set; }

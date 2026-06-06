@@ -142,7 +142,10 @@ namespace GSWEngine
                     else key.DeleteValue(AppNameShort, false);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+            }
         }
 
         public static void RefreshUI(StatsForm window)
@@ -221,53 +224,6 @@ namespace GSWEngine
                 new StoreTracker("Amazon", "Amazon Games UI", g) { IsGallowsCompatible = true },
                 new StoreTracker("Itch.io", "itch", g) { IsGallowsCompatible = true }
             };
-        }
-
-        public static string FormatExecutionHistory(List<string> history, int maxLines = 100)
-        {
-            // Requirement 2: Unified telemetry fallback greeting
-            if (history == null || history.Count == 0) return "TELEMETRY OUTPUT";
-
-            var formattedLines = new System.Collections.Generic.List<string>();
-            var targets = history.Skip(Math.Max(0, history.Count - maxLines)).ToList();
-
-            foreach (var rawLine in targets)
-            {
-                if (string.IsNullOrWhiteSpace(rawLine)) continue;
-
-                // Strip the legacy [Subsystem] tag entirely
-                int tagEndIndex = rawLine.IndexOf(']');
-                string fullMessage = tagEndIndex != -1
-                    ? rawLine.Substring(tagEndIndex + 1).TrimStart()
-                    : rawLine.Trim();
-
-                // Handle manual pipeline breaks
-                string[] segments = fullMessage.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
-
-                foreach (var segment in segments)
-                {
-                    string cleanSegment = segment.Trim();
-
-                    // Requirement 3: Strip any legacy or hardcoded 3-dots from the string before evaluation
-                    if (cleanSegment.EndsWith("..."))
-                    {
-                        cleanSegment = cleanSegment.Substring(0, cleanSegment.Length - 3).TrimEnd();
-                    }
-
-                    // Requirement 3: Enforce strict, mid-word truncation at exactly 55 characters with a single-dash indicator
-                    if (cleanSegment.Length > 55)
-                        // Enforce a strict, word-blind 67-character structural ceiling (66 text + 1 dash)
-                        if (cleanSegment.Length > 67)
-                        {
-                            cleanSegment = cleanSegment.Substring(0, 54) + "-";
-                            cleanSegment = cleanSegment.Substring(0, 66) + "-";
-                        }
-
-                    formattedLines.Add(cleanSegment);
-                }
-            }
-
-            return string.Join(Environment.NewLine, formattedLines);
         }
 
         public static Color BrightenColor(Color baseColor, float percentage = 0.30f)

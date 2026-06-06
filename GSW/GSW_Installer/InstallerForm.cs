@@ -235,7 +235,10 @@ namespace GSWEngine.Installer
                         }
                     }
                 }
-                catch { /* Failsafe: Assume not installed if registry blocked */ }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                }
 
                 if (!netInstalled)
                 {

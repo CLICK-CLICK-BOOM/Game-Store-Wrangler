@@ -41,7 +41,16 @@ namespace GSWEngine
 
         public static double GetTotalCpuUsage(List<int> familyPids, double elapsedMs, Dictionary<int, Process> cache)
         {
+            var deadPids = _cpuHistory.Keys.Where(pid => !cache.ContainsKey(pid)).ToList();
+            foreach (var pid in deadPids)
+            {
+                _cpuHistory.Remove(pid);
+                _ioHistory.Remove(pid);
+            }
+
             if (familyPids == null || familyPids.Count == 0 || elapsedMs < 10) return 0.0;
+
+            StateEngine.DiagnosticHUD.IsMeasuringCPU = true; // Telemetry switch
 
             double totalActiveMs = 0;
             foreach (int pid in familyPids)
@@ -73,18 +82,18 @@ namespace GSWEngine
 
             double usage = (totalActiveMs / (Environment.ProcessorCount * elapsedMs)) * 100;
 
-            // Clean up history if it gets bloated
-            if (_cpuHistory.Count > 200)
-            {
-                var keysToRemove = _cpuHistory.Keys.Where(k => !cache.ContainsKey(k)).ToList();
-                foreach (var k in keysToRemove) _cpuHistory.Remove(k);
-            }
-
             return Math.Min(100.0, Math.Max(0.0, usage));
         }
 
         public static long GetTotalDiskBytes(List<int> familyPids, Dictionary<int, Process> cache)
         {
+            var deadPids = _ioHistory.Keys.Where(pid => !cache.ContainsKey(pid)).ToList();
+            foreach (var pid in deadPids)
+            {
+                _cpuHistory.Remove(pid);
+                _ioHistory.Remove(pid);
+            }
+
             if (familyPids == null || familyPids.Count == 0) return 0;
 
             long totalDelta = 0;
@@ -118,13 +127,6 @@ namespace GSWEngine
                     }
                 }
                 catch { continue; }
-            }
-
-            // Clean up history if it gets bloated
-            if (_ioHistory.Count > 200)
-            {
-                var keysToRemove = _ioHistory.Keys.Where(k => !cache.ContainsKey(k)).ToList();
-                foreach (var k in keysToRemove) _ioHistory.Remove(k);
             }
 
             return totalDelta;

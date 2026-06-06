@@ -194,6 +194,9 @@ namespace GSWEngine
         {
             base.OnResize(e);
 
+            // Broadcast the window state to the debug HUD
+            StateEngine.DiagnosticHUD.IsMinimized = (this.WindowState == FormWindowState.Minimized);
+
             if (this.WindowState == FormWindowState.Minimized)
             {
                 // Enter Low Power Mode: Kill the UI heartbeat completely.

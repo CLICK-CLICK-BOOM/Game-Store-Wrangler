@@ -12,7 +12,7 @@ namespace GSWEngine
         private readonly Context _ctx;
         private NotifyIcon _trayIcon;
         private StatsForm _statsWindow;
-        private ThemeEditor _debugEditor;
+        private DebugTools _debugEditor;
 
         public UIManager(Context context)
         {
@@ -67,7 +67,7 @@ namespace GSWEngine
 
         private void InitializeTweaker()
         {
-            _debugEditor = new ThemeEditor(_ctx);
+            _debugEditor = new DebugTools(_ctx);
 
             // Logic preserved: Restore Tweaker position from Settings
             if (_ctx.Settings.TweakerX != -1 && _ctx.Settings.TweakerY != -1)
@@ -115,6 +115,8 @@ namespace GSWEngine
                         _ctx.Settings.WindowY = _statsWindow.Location.Y;
                         InternalFunctions.SaveSettings(_ctx.Settings);
                     }
+                    // Explicitly tell the Context to stop the UI CPU polling loop
+                    _ctx.IsUiVisible = false;
                 };
             }
 

@@ -4,26 +4,49 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GSWEngine
 {
     public class StateEngine
     {
+        public static class DiagnosticHUD
+        {
+            public static bool IsMinimized { get; set; }
+            public static bool IsIdle { get; set; }
+            public static bool IsRadarActive { get; set; }
+            public static bool IsSentryArmed { get; set; }
+            public static bool IsMeasuringCPU { get; set; }
+            public static bool IsMeasuringIO { get; set; }
+        }
+
         internal static bool IsDebug = false; // Toggle here manually for dev work
         internal static bool GameDetectionEnabled = true; // Always on for customers
+        internal static bool RunTelemetryStressTest = false; // Trigger maximum payload injection once on startup
 
         private readonly Context _ctx;
         private Dictionary<string, int> _forensicCounters = new Dictionary<string, int>();
         private Dictionary<string, int> _namingDelayCounters = new Dictionary<string, int>();
         private Dictionary<int, string> _activeGameNames = new Dictionary<int, string>();
+        private CancellationTokenSource _overwatchCts;
 
         // --- WIN32 TWO-STROKE PIPELINE INTERFACE ---
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
         private const int SW_SHOWMINIMIZED = 2;
 
-        public StateEngine(Context context) => _ctx = context;
+        public StateEngine(Context context)
+        {
+            _ctx = context;
+
+            // Single-Shot Diagnostic Payload
+            if (RunTelemetryStressTest)
+            {
+                AuditLogger.RunTelemetryStressTest(_ctx);
+                RunTelemetryStressTest = false; // Instantly disarm to guarantee it never fires twice
+            }
+        }
 
         public void ProcessTick(HashSet<string> activeGames, double elapsedSec, Dictionary<int, Process> processCache, List<GameSignal> currentSignals)
         {
@@ -32,6 +55,22 @@ namespace GSWEngine
             {
                 SyncStoreVitality(store, processCache);
             }
+
+            // The engine's true UI state determines both the MIN light and CPU light
+            DiagnosticHUD.IsMinimized = !_ctx.IsUiVisible;
+
+            // 1. Sentry is armed if the token exists
+            DiagnosticHUD.IsSentryArmed = (_overwatchCts != null);
+
+            // 2. Idle is true if ALL stores are OFFLINE
+            DiagnosticHUD.IsIdle = _ctx.Settings.Trackers.All(t => t.CurrentStatus == "OFFLINE");
+
+            // 3. Radar is ON only if we are actively managing/hunting (NOT in Deep Sleep)
+            DiagnosticHUD.IsRadarActive = !DiagnosticHUD.IsSentryArmed && _ctx.Settings.Trackers.Any(t => t.CurrentStatus != "OFFLINE");
+
+            // 4. CPU/IO lights are strictly suppressed if Sentry is armed (Deep Sleep)
+            DiagnosticHUD.IsMeasuringCPU = !DiagnosticHUD.IsSentryArmed && _ctx.IsUiVisible && (_ctx.Settings.Trackers.Any(t => t.CurrentStatus != "OFFLINE"));
+            DiagnosticHUD.IsMeasuringIO = !DiagnosticHUD.IsSentryArmed && _ctx.Settings.Trackers.Any(t => t.CurrentStatus != "OFFLINE");
 
             // 2. Game Detection & Attribution
             if (GameDetectionEnabled && currentSignals != null)
@@ -114,9 +153,12 @@ namespace GSWEngine
                                         ShowWindow(proc.MainWindowHandle, SW_SHOWMINIMIZED);
                                     }
                                 }
-                                catch { }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Trace.WriteLine($"[GSW SILENT EXCEPTION] {ex.Message} | Source: {ex.StackTrace}");
+                                }
                             }
-                            _ctx.AppendToHistory($"[Engine] Game detected. Soft-minimizing {store.DisplayName}...");
+                            _ctx.AppendToHistory($"[Engine] Game detected. Soft-minimizing {store.DisplayName}.");
                         }
 
                         // STROKE 2: Standard rolling aggregate I/O countdown handles the rest
@@ -191,6 +233,60 @@ namespace GSWEngine
 
                 UpdateStateWithHysteresis(store, fallbackStatus, elapsedSec, false);
             }
+
+            // --- SENTRY ENGAGEMENT PROTOCOL ---
+            // Sentry should only arm when a game is running AND all unnecessary stores are dead.
+            if (_ctx.Settings.CloseUnnecessaryStoresOnLaunch && isAnyGameActive)
+            {
+                // Define the "cleared" perimeter: Are there any stores in an active/min/closing state that SHOULD be dead?
+                bool isPerimeterClear = true;
+                StoreTracker targetStore = null;
+
+                foreach (var st in _ctx.Settings.Trackers)
+                {
+                    if (st.CurrentStatus == "GAME ACTIVE" || st.CurrentStatus == "GAME XBOX")
+                    {
+                        targetStore = st; // Identify the protector
+                        continue;
+                    }
+
+                    // Xbox/Dependency Treaty rules still apply during perimeter check
+                    bool isXboxKeepActive = _ctx.Settings.Trackers.Any(t => t.DisplayName.Equals("Xbox", StringComparison.OrdinalIgnoreCase) && t.ManualOverride);
+                    bool isDependencyStore = st.DisplayName.Equals("Battle.net", StringComparison.OrdinalIgnoreCase) ||
+                                             st.DisplayName.Equals("Ubisoft", StringComparison.OrdinalIgnoreCase) ||
+                                             st.DisplayName.Equals("EA Desktop", StringComparison.OrdinalIgnoreCase);
+
+                    if (isXboxKeepActive && isDependencyStore) continue;
+                    if (st.CurrentStatus == "Xbox Buddy") continue;
+                    if (st.ManualOverride) continue;
+
+                    // If ANY store is still alive (not OFFLINE), the perimeter is NOT clear.
+                    if (st.CurrentStatus != "OFFLINE")
+                    {
+                        isPerimeterClear = false;
+                        break;
+                    }
+                }
+
+                if (isPerimeterClear && _overwatchCts == null && targetStore != null)
+                {
+                    // Perimeter is clear. Arm the Sentry.
+                    _overwatchCts = new CancellationTokenSource();
+                    _ = RunTacticalOverwatchAsync(targetStore, _overwatchCts.Token);
+                    _ctx.AppendToHistory("[Sentry] Perimeter clear. Sentry engaged.");
+                }
+            }
+            else
+            {
+                // Disarm if no games are running or user toggles off mid-game
+                if (_overwatchCts != null)
+                {
+                    _overwatchCts.Cancel();
+                    _overwatchCts.Dispose();
+                    _overwatchCts = null;
+                    _ctx.AppendToHistory("[Sentry] Sentry disengaged.");
+                }
+            }
         }
 
         private void ResolveXboxBuddyState(StoreTracker store)
@@ -218,6 +314,33 @@ namespace GSWEngine
 
         private void ProcessGameSignal(GameSignal signal, HashSet<string> activeGames, Dictionary<int, Process> cache)
         {
+            // --- THE GHOST WINDOW GUARD ---
+            // Prevents ping-pong log spam from lingering UWP/GDK container windows
+            bool isAlive = cache.ContainsKey(signal.Pid);
+            if (!isAlive)
+            {
+                try
+                {
+                    // Poke the PID directly. If it throws, the backing process is dead.
+                    using (var p = Process.GetProcessById(signal.Pid)) { isAlive = true; }
+                }
+                catch { isAlive = false; }
+            }
+
+            // Drop the signal entirely if the process is gone, ignoring the zombie window.
+            if (!isAlive) return;
+
+            // Requirement: Enforce a strict 47-character limit on volatile game names to allow for terminal punctuation
+            if (!string.IsNullOrEmpty(signal.ProcessName) && signal.ProcessName.Length > 47)
+            {
+                signal.ProcessName = signal.ProcessName.Substring(0, 44) + "...";
+            }
+
+            if (!string.IsNullOrEmpty(signal.WindowTitle) && signal.WindowTitle.Length > 47)
+            {
+                signal.WindowTitle = signal.WindowTitle.Substring(0, 44) + "...";
+            }
+
             _activeGameNames[signal.Pid] = signal.ProcessName;
 
             // --- A. PERMANENT GLUE ---
@@ -257,7 +380,7 @@ namespace GSWEngine
                         _namingDelayCounters[attributedStore.DisplayName]--;
                         if (_namingDelayCounters[attributedStore.DisplayName] <= 0)
                         {
-                            _ctx.AppendToHistory($"Target identified: {signal.WindowTitle}");
+                            _ctx.AppendToHistory($"Target identified: {signal.WindowTitle}.");
 
                             if (!string.IsNullOrEmpty(signal.WindowTitle))
                             {
@@ -378,6 +501,14 @@ namespace GSWEngine
                     // GAME EXIT DETECTED: Scrub this PID from EVERY store immediately
                     int deadPid = store.ActiveGamePid;
 
+                    // Stand down the Sentry
+                    if (_overwatchCts != null)
+                    {
+                        _overwatchCts.Cancel();
+                        _overwatchCts.Dispose();
+                        _overwatchCts = null;
+                    }
+
                     if (_activeGameNames.ContainsKey(deadPid))
                     {
                         // TELEMETRY CHECKPOINT: Process Exit
@@ -396,7 +527,7 @@ namespace GSWEngine
                     {
                         store.CurrentStatus = "MIN";
                         ResolveXboxBuddyState(store);
-                        _ctx.AppendToHistory("[State] Store clear for management.");
+                        _ctx.AppendToHistory($"[State] {store.DisplayName} clear for management.");
                     }
                     // Console.WriteLine($"[RELEASE] Scrubbing PID {deadPid} from {store.DisplayName}");
                 }
@@ -490,7 +621,7 @@ namespace GSWEngine
                     if (averageIo > ioThreshold)
                     {
                         // Store is genuinely busy downloading/updating. Grant a pardon and reset.
-                        _ctx.AppendToHistory($"[Warden] Timer reset. {store.DisplayName} is busy (Avg I/O: {averageKb} KB/s > {thresholdKb} KB/s threshold over {store.MaxTime}s).");
+                        _ctx.AppendToHistory($"[Warden] Timer reset. {store.DisplayName} is busy. Avg I/O > threshold over {store.MaxTime}s).");
                         // Compressed: Removed heavy math readout from real-time view
                         _ctx.AppendToHistory($"[Warden] {store.DisplayName} busy: Resetting timer.");
                         store.TimeLeft = store.MaxTime;
@@ -500,7 +631,7 @@ namespace GSWEngine
                     else
                     {
                         // Just telemetry slop. Drop the axe.
-                        _ctx.AppendToHistory($"[Warden] Timer reached 0 on {store.DisplayName}. Avg I/O: {averageKb} KB/s < {thresholdKb} KB/s threshold over {store.MaxTime}s. Closing store.");
+                        _ctx.AppendToHistory($"[Warden] {store.DisplayName} idle {store.MaxTime}s. Terminating.");
 
                         var pidsToKill = store.LauncherPids.ToList();
                         Task.Run(() =>
@@ -520,6 +651,54 @@ namespace GSWEngine
                             store.AccumulationTicks = 0;
                         }, TaskScheduler.FromCurrentSynchronizationContext());
                     }
+                }
+            }
+        }
+
+        private async Task RunTacticalOverwatchAsync(StoreTracker activeStore, CancellationToken token)
+        {
+            // The Sentry Loop: Pulses every 5 seconds while the game is locked
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(5000, token);
+
+                    if (!_ctx.Settings.CloseUnnecessaryStoresOnLaunch) continue; // Respect user consent dynamically
+
+                    // Lightweight scan for resurrected stores (excluding the active/attributed store)
+                    var rogueStoresDetected = false;
+                    foreach (var tracker in _ctx.Settings.Trackers.Where(t => t != activeStore))
+                    {
+                        // Dependency Exception: Protect Battle.net if the active store is Xbox
+                        if (activeStore.DisplayName == "Xbox" && tracker.DisplayName == "Battle.net")
+                            continue;
+
+                        // Check if the rogue store's executable is currently running
+                        var rogueProcesses = Process.GetProcessesByName(tracker.ProcessName);
+                        if (rogueProcesses.Any())
+                        {
+                            rogueStoresDetected = true;
+                            _ctx.AppendToHistory($"[Sentry] Rogue process detected: {tracker.DisplayName}. Executing.");
+                            // Trigger the existing Executioner/Warden termination logic here
+                            var pidsToKill = rogueProcesses.Select(p => p.Id).ToList();
+                            Executioner.TerminateStore(tracker, pidsToKill, (msg) => _ctx.AppendToHistory(msg));
+                        }
+                    }
+
+                    if (rogueStoresDetected)
+                    {
+                        _ctx.AppendToHistory("[Sentry] Perimeter secured. Resuming overwatch.");
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    // The game ended, Sentry thread cleanly aborted
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[GSW Sentry Exception] {ex.Message}");
                 }
             }
         }
