@@ -21,6 +21,9 @@ Get the latest installer from the official repository releases:
 https://github.com/CLICK-CLICK-BOOM/Game-Store-Wrangler/releases/tag/v0.9.0
 
 ## Support
+Because this is a free, indie tool, the installer is not signed with an expensive corporate certificate. Windows will flag it. To install, click More info and then Run anyway to get it functional.
+If we build any degree of user base I will address this.
+
 This software is provided for free. If you find it useful and would like to support continued development, you can do so via our Stripe support link.
 
 ## Contact
