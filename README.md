@@ -18,7 +18,7 @@ It is the sort of utility you can just leave running quietly in your system tray
 ## Download
 Get the latest installer from the official repository releases:
 
-https://github.com/CLICK-CLICK-BOOM/Game-Store-Wrangler/releases/tag/v0.9.0
+https://github.com/CLICK-CLICK-BOOM/Game-Store-Wrangler/releases
 
 ## Support
 
